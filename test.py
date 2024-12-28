@@ -79,17 +79,24 @@ def chatbot(user_question, conversation):
         retrieved_answer = "متأسفم، پاسخ مناسبی در دیتابیس پیدا نشد."
         url = None
     else:
-        retrieved_answer = relevant_questions.reset_index()['answer'][0] + relevant_questions.reset_index()['title'][0]
-        url = relevant_questions.reset_index()['url'][0]
+        retrieved_answers = [
+            f"عنوان: {row['title']}\nپاسخ: {row['answer']}\nلینک: {row['url']}" 
+            for _, row in relevant_questions.reset_index().iterrows()
+        ]
+        retrieved_answer = "\n---\n".join(retrieved_answers)
+        url = relevant_questions.reset_index()['url'][0]  # لینک اولین نتیجه برای مرجع
+
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
     if retrieved_answer != "متأسفم، پاسخ مناسبی در دیتابیس پیدا نشد.":
-        messages.append(HumanMessage(content=f"اطلاعات بازیابی‌شده: {retrieved_answer}"))
+        messages.append(HumanMessage(content=f"اطلاعات بازیابی‌شده:\n{retrieved_answer}"))
+    
     for msg in conversation:
         if msg['role'] == 'user':
             messages.append(HumanMessage(content=msg['content']))
         else:
             messages.append(AIMessage(content=msg['content']))
     messages.append(HumanMessage(content=user_question))
+    
     response = llm(messages=messages)
     return response.content, url
 
