@@ -80,7 +80,7 @@ def chatbot(user_question, conversation):
         url = None
     else:
         retrieved_answers = [
-            f"عنوان: {row['title']}\nپاسخ: {row['answer']}\nلینک: {row['url']}" 
+            f"عنوان: {row['title']}\nلینک: {row['url']}" 
             for _, row in relevant_questions.reset_index().iterrows()
         ]
         retrieved_answer = "\n---\n".join(retrieved_answers)
