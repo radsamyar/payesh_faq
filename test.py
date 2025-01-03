@@ -31,9 +31,8 @@ if 'messages' not in st.session_state:
     st.session_state['messages'] = []
 
 SYSTEM_PROMPT = (
-    "پاسخ‌های خود را بر اساس اطلاعات بازیابی‌شده ارائه کن. "
-    "اگر اطلاعات بازیابی‌شده ناکافی بود، اعلام کن و از دانش خود برای تکمیل پاسخ استفاده کن.  سعی کن تا جایی که میشه از اطلاعات بازیابی شده استفاده کنی"
-    "پاسخ‌ها باید دقیق، رسمی، و خلاصه باشند."
+    "پاسخ‌های خود را در درجه اول بر اساس اطلاعات بازیابی‌شده از اسناد ارائه شده بنویسید."
+    "اگر اطلاعات اسناد برای پاسخ کامل به سوال کافی نیست، این موضوع را صریحا بیان کنید و سپس با استفاده از دانش خود، پاسخ را تکمیل کنید."
     
     
 )
@@ -65,7 +64,7 @@ def get_question_embeddings(question):
     embeddings = model.encode(sentences, batch_size=12, max_length=512)['dense_vecs']
     return embeddings[0]
 
-def search_questions(query, top_k=3):
+def search_questions(query, top_k=7):
     query_embedding = get_question_embeddings(query).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, top_k)
     if indices[0][0] == -1:
@@ -80,11 +79,11 @@ def chatbot(user_question, conversation):
         url = None
     else:
         retrieved_answers = [
-            f"عنوان: {row['title']}\nلینک: {row['url']}" 
+            f"سند: {row['title']}\nلینک: {row['url']}" 
             for _, row in relevant_questions.reset_index().iterrows()
         ]
         retrieved_answer = "\n---\n".join(retrieved_answers)
-        url = relevant_questions.reset_index()['url'][0]  # لینک اولین نتیجه برای مرجع
+        url = relevant_questions.reset_index()['url'][0]  
 
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
     if retrieved_answer != "متأسفم، پاسخ مناسبی در دیتابیس پیدا نشد.":
