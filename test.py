@@ -64,7 +64,7 @@ def get_question_embeddings(question):
     embeddings = model.encode(sentences, batch_size=12, max_length=512)['dense_vecs']
     return embeddings[0]
 
-def search_questions(query, top_k=7):
+def search_questions(query, top_k=12):
     query_embedding = get_question_embeddings(query).astype('float32').reshape(1, -1)
     distances, indices = index.search(query_embedding, top_k)
     if indices[0][0] == -1:
