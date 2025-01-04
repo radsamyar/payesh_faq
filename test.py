@@ -31,7 +31,7 @@ if 'messages' not in st.session_state:
     st.session_state['messages'] = []
 
 SYSTEM_PROMPT = (
-    "پاسخ‌های خود را در درجه اول بر اساس اطلاعات بازیابی‌شده از اسناد ارائه شده بنویسید. اما سعی کن دقیق سوال را پاسخ بدی "
+    "پاسخ‌های خود را در درجه اول بر اساس اطلاعات بازیابی‌شده از اسناد ارائه شده بنویسید.دقیق پاسخ بده "
     "اگر اطلاعات اسناد برای پاسخ کامل به سوال کافی نیست، این موضوع را صریحا بیان کنید و سپس با استفاده از دانش خود، پاسخ را تکمیل کنید."
     
     
@@ -39,8 +39,8 @@ SYSTEM_PROMPT = (
 
 @st.cache_resource
 def load_index_and_docs():
-    index = faiss.read_index("faiss_questions (3).index")
-    documents = pd.read_csv("questions (3).csv")
+    index = faiss.read_index("faiss_questions (4).index")
+    documents = pd.read_csv("questions (4).csv")
     return index, documents
 
 index, documents = load_index_and_docs()
@@ -64,8 +64,8 @@ def get_question_embeddings(question):
     embeddings = model.encode(sentences, batch_size=12, max_length=512)['dense_vecs']
     return embeddings[0]
 
-def search_questions(query, top_k=9):
-    query_embedding = get_question_embeddings(query).astype('float32').reshape(1, -1)
+def search_questions(query, top_k=7):
+    query_embedding = get_question_embeddings(query).astype('float16').reshape(1, -1)
     distances, indices = index.search(query_embedding, top_k)
     if indices[0][0] == -1:
         return pd.DataFrame()
