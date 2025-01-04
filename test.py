@@ -1,3 +1,4 @@
+import tiktoken
 import streamlit as st
 import faiss
 import numpy as np
@@ -7,6 +8,10 @@ from langchain_groq import ChatGroq
 from langchain.schema import SystemMessage, HumanMessage, AIMessage
 
 st.set_page_config(page_title="چت بات FAQ General", page_icon=":speech_balloon:", layout="centered")
+
+# Initialize the tokenizer for token counting (using a model similar to GPT-3 or GPT-4)
+tokenizer = tiktoken.get_encoding("cl100k_base")
+
 def get_base64_encoded_image(image_path):
     with open(image_path, "rb") as image_file:
         import base64
@@ -27,17 +32,17 @@ st.markdown(
 )
 st.write()
 
-# مقداردهی اولیه session state
+# Initialize session state variables
 if 'messages' not in st.session_state:
-    st.session_state['messages'] = []  # لیست برای ذخیره تمام پیام‌های گفتگو
+    st.session_state['messages'] = []
+
 if 'last_retrieved_answer' not in st.session_state:
-    st.session_state['last_retrieved_answer'] = None # ذخیره آخرین پاسخ بازیابی شده
+    st.session_state['last_retrieved_answer'] = ""
 
 SYSTEM_PROMPT = (
-    "پاسخ‌های خود را بر اساس اطلاعات بازیابی‌شده از اسناد ارائه شده بنویسید. اگر اطلاعات کافی نیست، صریحاً اعلام کنید و سپس با دانش خود پاسخ دهید."
+    "پاسخ‌های خود را در درجه اول بر اساس اطلاعات بازیابی‌شده از اسناد ارائه شده بنویسید. اما سعی کن دقیق سوال را پاسخ بدی "
+    "اگر اطلاعات اسناد برای پاسخ کامل به سوال کافی نیست، این موضوع را صریحا بیان کنید و سپس با استفاده از دانش خود، پاسخ را تکمیل کنید."
 )
-
-
 
 @st.cache_resource
 def load_index_and_docs():
@@ -66,14 +71,16 @@ def get_question_embeddings(question):
     embeddings = model.encode(sentences, batch_size=12, max_length=512)['dense_vecs']
     return embeddings[0]
 
-def search_questions(query, top_k=3):
+def search_questions(query, top_k=5):
     query_embedding = get_question_embeddings(query).astype('float16').reshape(1, -1)
     distances, indices = index.search(query_embedding, top_k)
     if indices[0][0] == -1:
         return pd.DataFrame()
     results = documents.iloc[indices[0]]
     return results
+
 def count_tokens(messages):
+    """Count the number of tokens in a list of messages."""
     tokens = 0
     for msg in messages:
         tokens += len(tokenizer.encode(msg.content))
@@ -86,39 +93,41 @@ def chatbot(user_question, conversation):
         url = None
     else:
         retrieved_answers = [
-            f"سند: {row['title']}\nلینک: {row['url']}"
+            f"سند: {row['title']}\nلینک: {row['url']}" 
             for _, row in relevant_questions.reset_index().iterrows()
         ]
         retrieved_answer = "\n---\n".join(retrieved_answers)
-        url = relevant_questions.reset_index()['url'][0]
-        st.session_state['last_retrieved_answer'] = retrieved_answer  # **نکته مهم:** فقط آخرین پاسخ بازیابی شده ذخیره می‌شود
+        url = relevant_questions.reset_index()['url'][0]  
+
+    # Store only the last retrieved_answer
+    st.session_state['last_retrieved_answer'] = retrieved_answer
 
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
-
-    # **نکته مهم:** فقط از آخرین پاسخ بازیابی شده در پیام‌ها استفاده می‌شود
-    if st.session_state['last_retrieved_answer'] and st.session_state['last_retrieved_answer'] != "متأسفم، پاسخ مناسبی در دیتابیس پیدا نشد.":
-        messages.append(HumanMessage(content=f"اطلاعات بازیابی‌شده:\n{st.session_state['last_retrieved_answer']}"))
-
-    # اضافه کردن تاریخچه گفتگو به پیام‌ها
-    for msg in conversation:  # conversation همون st.session_state['messages'][:-1] هست
+    if retrieved_answer != "متأسفم، پاسخ مناسبی در دیتابیس پیدا نشد.":
+        messages.append(HumanMessage(content=f"اطلاعات بازیابی‌شده:\n{retrieved_answer}"))
+    
+    # Adding the conversation history to the messages
+    for msg in conversation:
         if msg['role'] == 'user':
             messages.append(HumanMessage(content=msg['content']))
         else:
             messages.append(AIMessage(content=msg['content']))
-
+    
     messages.append(HumanMessage(content=user_question))
 
+    # Count the tokens before sending the request
     num_tokens = count_tokens(messages)
-    print(f"تعداد توکن‌ها: {num_tokens}")
     st.write(f"تعداد توکن‌ها: {num_tokens}")
 
+    # Check if the token count exceeds 8000
     if num_tokens > 8000:
         st.warning("تعداد توکن‌ها از 8K بیشتر شده است!")
 
+    # Send the messages to the model
     response = llm(messages=messages)
-    return response.content, url, num_tokens
+    return response.content, url
 
-# نمایش پیام‌های قبلی
+# Display previous messages (only the last two user inputs and responses)
 for msg in st.session_state['messages']:
     if msg['role'] == 'user':
         with st.chat_message("user"):
@@ -130,16 +139,28 @@ for msg in st.session_state['messages']:
 user_question = st.chat_input("سوال خود را وارد کنید:")
 
 if user_question and user_question.strip():
+    # Add new user message
     st.session_state['messages'].append({"role": "user", "content": user_question})
+
+    # Limit stored messages to only the last two user inputs and responses (total 4)
+    if len(st.session_state['messages']) > 4:
+        st.session_state['messages'] = st.session_state['messages'][-4:]
+
     with st.chat_message("user"):
         st.write(user_question)
 
     with st.chat_message("assistant"):
         with st.spinner("در حال پردازش..."):
-            answer, url, num_tokens = chatbot(user_question, st.session_state['messages'][:-1])
-            st.session_state['messages'].append({"role": "assistant", "content":url+"\n\n"+ answer})
+            answer, url = chatbot(user_question, st.session_state['messages'][:-1])
+
+            # Add new assistant message
+            st.session_state['messages'].append({"role": "assistant", "content": url + "\n\n" + answer})
+
+            # Limit stored messages again after adding assistant response
+            if len(st.session_state['messages']) > 4:
+                st.session_state['messages'] = st.session_state['messages'][-4:]
+
             if url:
                 st.write(f"[لینک مرتبط به پاسخ]({url})")
             st.write("\n\n")
             st.write(answer)
-            st.write(f"تعداد توکن‌ها در این درخواست: {num_tokens}")
