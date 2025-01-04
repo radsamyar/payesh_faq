@@ -27,15 +27,17 @@ st.markdown(
 )
 st.write()
 
+# مقداردهی اولیه session state
 if 'messages' not in st.session_state:
-    st.session_state['messages'] = []
+    st.session_state['messages'] = []  # لیست برای ذخیره تمام پیام‌های گفتگو
+if 'last_retrieved_answer' not in st.session_state:
+    st.session_state['last_retrieved_answer'] = None # ذخیره آخرین پاسخ بازیابی شده
 
 SYSTEM_PROMPT = (
-    "پاسخ‌های خود را در درجه اول بر اساس اطلاعات بازیابی‌شده از اسناد ارائه شده بنویسید.دقیق پاسخ بده "
-    "اگر اطلاعات اسناد برای پاسخ کامل به سوال کافی نیست، این موضوع را صریحا بیان کنید و سپس با استفاده از دانش خود، پاسخ را تکمیل کنید."
-    
-    
+    "پاسخ‌های خود را بر اساس اطلاعات بازیابی‌شده از اسناد ارائه شده بنویسید. اگر اطلاعات کافی نیست، صریحاً اعلام کنید و سپس با دانش خود پاسخ دهید."
 )
+
+
 
 @st.cache_resource
 def load_index_and_docs():
@@ -71,6 +73,11 @@ def search_questions(query, top_k=3):
         return pd.DataFrame()
     results = documents.iloc[indices[0]]
     return results
+def count_tokens(messages):
+    tokens = 0
+    for msg in messages:
+        tokens += len(tokenizer.encode(msg.content))
+    return tokens
 
 def chatbot(user_question, conversation):
     relevant_questions = search_questions(user_question)
@@ -79,26 +86,39 @@ def chatbot(user_question, conversation):
         url = None
     else:
         retrieved_answers = [
-            f"سند: {row['title']}\nلینک: {row['url']}" 
+            f"سند: {row['title']}\nلینک: {row['url']}"
             for _, row in relevant_questions.reset_index().iterrows()
         ]
         retrieved_answer = "\n---\n".join(retrieved_answers)
-        url = relevant_questions.reset_index()['url'][0]  
+        url = relevant_questions.reset_index()['url'][0]
+        st.session_state['last_retrieved_answer'] = retrieved_answer  # **نکته مهم:** فقط آخرین پاسخ بازیابی شده ذخیره می‌شود
 
     messages = [SystemMessage(content=SYSTEM_PROMPT)]
-    if retrieved_answer != "متأسفم، پاسخ مناسبی در دیتابیس پیدا نشد.":
-        messages.append(HumanMessage(content=f"اطلاعات بازیابی‌شده:\n{retrieved_answer}"))
-    
-    for msg in conversation:
+
+    # **نکته مهم:** فقط از آخرین پاسخ بازیابی شده در پیام‌ها استفاده می‌شود
+    if st.session_state['last_retrieved_answer'] and st.session_state['last_retrieved_answer'] != "متأسفم، پاسخ مناسبی در دیتابیس پیدا نشد.":
+        messages.append(HumanMessage(content=f"اطلاعات بازیابی‌شده:\n{st.session_state['last_retrieved_answer']}"))
+
+    # اضافه کردن تاریخچه گفتگو به پیام‌ها
+    for msg in conversation:  # conversation همون st.session_state['messages'][:-1] هست
         if msg['role'] == 'user':
             messages.append(HumanMessage(content=msg['content']))
         else:
             messages.append(AIMessage(content=msg['content']))
-    messages.append(HumanMessage(content=user_question))
-    
-    response = llm(messages=messages)
-    return response.content, url
 
+    messages.append(HumanMessage(content=user_question))
+
+    num_tokens = count_tokens(messages)
+    print(f"تعداد توکن‌ها: {num_tokens}")
+    st.write(f"تعداد توکن‌ها: {num_tokens}")
+
+    if num_tokens > 8000:
+        st.warning("تعداد توکن‌ها از 8K بیشتر شده است!")
+
+    response = llm(messages=messages)
+    return response.content, url, num_tokens
+
+# نمایش پیام‌های قبلی
 for msg in st.session_state['messages']:
     if msg['role'] == 'user':
         with st.chat_message("user"):
@@ -112,14 +132,14 @@ user_question = st.chat_input("سوال خود را وارد کنید:")
 if user_question and user_question.strip():
     st.session_state['messages'].append({"role": "user", "content": user_question})
     with st.chat_message("user"):
-        st.write(user_question) 
-
+        st.write(user_question)
 
     with st.chat_message("assistant"):
         with st.spinner("در حال پردازش..."):
-            answer, url = chatbot(user_question, st.session_state['messages'][:-1])
+            answer, url, num_tokens = chatbot(user_question, st.session_state['messages'][:-1])
             st.session_state['messages'].append({"role": "assistant", "content":url+"\n\n"+ answer})
             if url:
                 st.write(f"[لینک مرتبط به پاسخ]({url})")
             st.write("\n\n")
             st.write(answer)
+            st.write(f"تعداد توکن‌ها در این درخواست: {num_tokens}")
