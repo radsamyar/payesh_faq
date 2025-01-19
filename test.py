@@ -61,7 +61,7 @@ model = load_model()
 
 @st.cache_resource
 def load_llm():
-    llm = ChatGroq(groq_api_key="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", model_name="llama-3.1-8b-instant")
+    llm = ChatGroq(groq_api_key="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", model_name="Gemma2-9b-It")
     return llm
 
 llm = load_llm()
@@ -125,7 +125,7 @@ def chatbot(user_question, conversation):
 
     # Send the messages to the model
     response = llm(messages=messages)
-    return response.content, url
+    return response.content, url,relevant_questions
 
 # Display previous messages (only the last two user inputs and responses)
 for msg in st.session_state['messages']:
@@ -151,7 +151,7 @@ if user_question and user_question.strip():
 
     with st.chat_message("assistant"):
         with st.spinner("در حال پردازش..."):
-            answer, url = chatbot(user_question, st.session_state['messages'][:-1])
+            answer, url,rel = chatbot(user_question, st.session_state['messages'][:-1])
 
             # Add new assistant message
             st.session_state['messages'].append({"role": "assistant", "content": url + "\n\n" + answer})
@@ -161,6 +161,6 @@ if user_question and user_question.strip():
                 st.session_state['messages'] = st.session_state['messages'][-4:]
 
             if url:
-                st.write(f"[لینک مرتبط به پاسخ]({url})")
+                st.write(rel)
             st.write("\n\n")
             st.write(answer)
