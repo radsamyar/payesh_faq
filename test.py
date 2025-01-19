@@ -61,7 +61,7 @@ model = load_model()
 
 @st.cache_resource
 def load_llm():
-    llm = ChatGroq(groq_api_key="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", model_name="Gemma2-9b-It")
+    llm = ChatGroq(groq_api_key="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", model_name="llama-3.1-8b-instant")
     return llm
 
 llm = load_llm()
