@@ -46,8 +46,8 @@ SYSTEM_PROMPT = (
 
 @st.cache_resource
 def load_index_and_docs():
-    index = faiss.read_index("faiss_questions (4).index")
-    documents = pd.read_csv("questions (4).csv")
+    index = faiss.read_index("900-50.index")
+    documents = pd.read_csv("900-50.csv")
     return index, documents
 
 index, documents = load_index_and_docs()
