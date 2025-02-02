@@ -125,7 +125,7 @@ def chatbot(user_question, conversation):
 
     # Send the messages to the model
     response = llm(messages=messages)
-    return response.content, url,relevant_questions
+    return response.content, url
 
 # Display previous messages (only the last two user inputs and responses)
 for msg in st.session_state['messages']:
@@ -151,7 +151,7 @@ if user_question and user_question.strip():
 
     with st.chat_message("assistant"):
         with st.spinner("در حال پردازش..."):
-            answer, url,rel = chatbot(user_question, st.session_state['messages'][:-1])
+            answer, url = chatbot(user_question, st.session_state['messages'][:-1])
 
             # Add new assistant message
             st.session_state['messages'].append({"role": "assistant", "content": url + "\n\n" + answer})
@@ -161,6 +161,6 @@ if user_question and user_question.strip():
                 st.session_state['messages'] = st.session_state['messages'][-4:]
 
             if url:
-                st.write(rel)
+                st.write(f"[لینک مرتبط به پاسخ]({url})")
             st.write("\n\n")
             st.write(answer)
