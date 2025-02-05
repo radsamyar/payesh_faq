@@ -49,8 +49,8 @@ SYSTEM_PROMPT = (
 
 @st.cache_resource
 def load_index_and_docs():
-    index = faiss.read_index("faiss_questions (4).index")
-    documents = pd.read_csv("questions (4).csv")
+    index = faiss.read_index("900-50.index")
+    documents = pd.read_csv("900-50.csv")
     return index, documents
 
 index, documents = load_index_and_docs()
@@ -81,7 +81,7 @@ def get_question_embeddings(question):
     embeddings = model.encode(sentences, batch_size=12, max_length=512)['dense_vecs']
     return embeddings[0]
 
-def search_questions(query, top_k=10):
+def search_questions(query, top_k=8):
     query_embedding = get_question_embeddings(query).astype('float16').reshape(1, -1)
     distances, indices = index.search(query_embedding, top_k)
     if indices[0][0] == -1:
